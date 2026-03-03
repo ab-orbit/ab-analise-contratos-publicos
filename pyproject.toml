@@ -2,13 +2,15 @@
 name = "analise-contratos-publicos"
 version = "0.1.0"
 description = "Add your description here"
-requires-python = ">=3.12"
+requires-python = ">=3.12,<3.14"
 dependencies = [
     "jupyterlab>=4.5.5",
     "matplotlib>=3.10.8",
-    "networkx>=3.6.1",
-    "pandas>=3.0.1",
+    "networkx>=2.6,<=3.3",
+    "pandas>=2.2,<3",
+    "plotly>=6.3.1",
     "scikit-learn>=1.8.0",
     "seaborn>=0.13.2",
+    "taipy>=4.1.0",
     "wordcloud>=1.9.6",
 ]

@@ -3,6 +3,13 @@
   <component name="CsvFileAttributes">
     <option name="attributeMap">
       <map>
+        <entry key="/data/pe/comex/V_EXPORTACAO_POR_MUNICIPIO_2024-01_2026-12_DT20260303.csv">
+          <value>
+            <Attribute>
+              <option name="separator" value=";" />
+            </Attribute>
+          </value>
+        </entry>
         <entry key="/data/pe/recife/dados_abertos_contratos.csv">
           <value>
             <Attribute>
