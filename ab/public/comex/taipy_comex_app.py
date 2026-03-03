@@ -399,13 +399,13 @@ def _sankey_chain(filtered: pd.DataFrame):
         .sum()
     )
 
-    sources = [node_idx[f"M: {r.Municipio}"] for r in link_m_sh2.itertuples(index=False)]
-    targets = [node_idx[f"SH2: {r._1}"] for r in link_m_sh2.itertuples(index=False)]
-    values = [float(r._2) for r in link_m_sh2.itertuples(index=False)]
+    sources = [node_idx[f"M: {m}"] for m in link_m_sh2["Municipio"]]
+    targets = [node_idx[f"SH2: {sh2}"] for sh2 in link_m_sh2["Codigo SH2"]]
+    values = [float(v) for v in link_m_sh2["Valor US$ FOB"]]
 
-    sources += [node_idx[f"SH2: {r._0}"] for r in link_sh2_p.itertuples(index=False)]
-    targets += [node_idx[f"P: {r._1}"] for r in link_sh2_p.itertuples(index=False)]
-    values += [float(r._2) for r in link_sh2_p.itertuples(index=False)]
+    sources += [node_idx[f"SH2: {sh2}"] for sh2 in link_sh2_p["Codigo SH2"]]
+    targets += [node_idx[f"P: {p}"] for p in link_sh2_p["Pais"]]
+    values += [float(v) for v in link_sh2_p["Valor US$ FOB"]]
 
     fig = go.Figure(
         data=[
