@@ -425,6 +425,79 @@ def _sankey_chain(filtered: pd.DataFrame):
     return fig
 
 
+def _product_views(filtered: pd.DataFrame, top_n: int):
+    if filtered.empty:
+        empty = px.scatter(title="Sem dados para produtos")
+        return empty, empty, pd.DataFrame()
+
+    prod = (
+        filtered.groupby(["Fluxo", "Codigo SH2", "Descricao SH2"], as_index=False)
+        .agg(valor=("Valor US$ FOB", "sum"), kg=("Quilograma Liquido", "sum"))
+    )
+    prod["usdkg"] = np.where(prod["kg"] > 0, prod["valor"] / prod["kg"], np.nan)
+
+    top_prod = (
+        prod.sort_values(["Fluxo", "valor"], ascending=[True, False])
+        .groupby("Fluxo", group_keys=False)
+        .head(top_n)
+        .copy()
+    )
+    top_prod["label"] = top_prod["Codigo SH2"] + " - " + top_prod["Descricao SH2"].str.slice(0, 42)
+
+    fig_products = px.bar(
+        top_prod.sort_values("valor", ascending=True),
+        x="valor",
+        y="label",
+        color="Fluxo",
+        orientation="h",
+        barmode="group",
+        template=PLOT_TEMPLATE,
+        title=f"Produtos lideres por fluxo (Top {top_n} SH2)",
+        color_discrete_sequence=["#005f73", "#bb3e03"],
+        hover_data={"Descricao SH2": True, "usdkg": ":.4f", "kg": ":.2f", "valor": ":.2f"},
+    )
+    fig_products.update_layout(xaxis_title="Valor FOB (US$)", yaxis_title="SH2 e descricao")
+
+    space = (
+        prod.sort_values("valor", ascending=False)
+        .groupby("Fluxo", group_keys=False)
+        .head(max(top_n * 2, 20))
+        .copy()
+    )
+    space["label"] = space["Codigo SH2"] + " - " + space["Descricao SH2"].str.slice(0, 30)
+    fig_product_space = px.scatter(
+        space,
+        x="kg",
+        y="valor",
+        size="valor",
+        color="Fluxo",
+        hover_name="label",
+        template=PLOT_TEMPLATE,
+        title="Mapa de produtos: volume x valor (SH2)",
+        color_discrete_sequence=["#005f73", "#bb3e03"],
+    )
+    fig_product_space.update_layout(xaxis_title="Quilograma liquido", yaxis_title="Valor FOB (US$)")
+
+    product_table = (
+        top_prod[["Fluxo", "Codigo SH2", "Descricao SH2", "valor", "kg", "usdkg"]]
+        .rename(
+            columns={
+                "Fluxo": "Fluxo",
+                "Codigo SH2": "SH2",
+                "Descricao SH2": "Descricao",
+                "valor": "Valor FOB",
+                "kg": "Kg Liquido",
+                "usdkg": "US$/kg",
+            }
+        )
+        .sort_values(["Fluxo", "Valor FOB"], ascending=[True, False])
+    )
+    product_table["Valor FOB"] = product_table["Valor FOB"].map(br_money)
+    product_table["Kg Liquido"] = product_table["Kg Liquido"].round(0).map(lambda v: f"{v:,.0f}".replace(",", "."))
+    product_table["US$/kg"] = product_table["US$/kg"].round(4)
+    return fig_products, fig_product_space, product_table
+
+
 def make_views(filtered: pd.DataFrame, block_filtered: pd.DataFrame, dim: str, metrica: str, top_n: int):
     if filtered.empty:
         empty = px.scatter(title="Sem dados para os filtros aplicados")
@@ -438,7 +511,10 @@ def make_views(filtered: pd.DataFrame, block_filtered: pd.DataFrame, dim: str, m
             "fig_opportunity": empty,
             "fig_regime": empty,
             "fig_sankey": go.Figure(),
+            "fig_products": empty,
+            "fig_product_space": empty,
             "block_table": pd.DataFrame(),
+            "product_table": pd.DataFrame(),
             "kpis": _kpis(filtered, dim),
             "insight_text": "Sem dados para os filtros aplicados.",
         }
@@ -542,6 +618,7 @@ def make_views(filtered: pd.DataFrame, block_filtered: pd.DataFrame, dim: str, m
     fig_opportunity = _opportunity_matrix(filtered, dim, top_n)
     fig_regime = _regime_map(filtered)
     fig_sankey = _sankey_chain(filtered)
+    fig_products, fig_product_space, product_table = _product_views(filtered, top_n)
 
     block_df = (
         block_filtered.groupby(["Fluxo", "Bloco Economico"], as_index=False)["Valor US$ FOB"]
@@ -560,7 +637,10 @@ def make_views(filtered: pd.DataFrame, block_filtered: pd.DataFrame, dim: str, m
         "fig_opportunity": fig_opportunity,
         "fig_regime": fig_regime,
         "fig_sankey": fig_sankey,
+        "fig_products": fig_products,
+        "fig_product_space": fig_product_space,
         "block_table": block_top,
+        "product_table": product_table,
         "kpis": _kpis(filtered, dim),
         "insight_text": _insight(filtered, rank_df, dim, metrica, top_n),
     }
@@ -585,7 +665,10 @@ def update_views(state):
     state.fig_opportunity = views["fig_opportunity"]
     state.fig_regime = views["fig_regime"]
     state.fig_sankey = views["fig_sankey"]
+    state.fig_products = views["fig_products"]
+    state.fig_product_space = views["fig_product_space"]
     state.block_table = views["block_table"]
+    state.product_table = views["product_table"]
     state.insight_text = views["insight_text"]
 
     k = views["kpis"]
@@ -636,7 +719,10 @@ fig_lorenz = px.scatter(title="Carregando...")
 fig_opportunity = px.scatter(title="Carregando...")
 fig_regime = px.scatter(title="Carregando...")
 fig_sankey = go.Figure()
+fig_products = px.scatter(title="Carregando...")
+fig_product_space = px.scatter(title="Carregando...")
 block_table = pd.DataFrame()
+product_table = pd.DataFrame()
 insight_text = ""
 
 _initial_filtered = filter_df(df_main, fluxo_sel, anos_sel, municipios_sel, paises_sel)
@@ -653,7 +739,10 @@ fig_lorenz = _initial_views["fig_lorenz"]
 fig_opportunity = _initial_views["fig_opportunity"]
 fig_regime = _initial_views["fig_regime"]
 fig_sankey = _initial_views["fig_sankey"]
+fig_products = _initial_views["fig_products"]
+fig_product_space = _initial_views["fig_product_space"]
 block_table = _initial_views["block_table"]
+product_table = _initial_views["product_table"]
 insight_text = _initial_views["insight_text"]
 
 _initial_k = _initial_views["kpis"]
@@ -712,26 +801,34 @@ Analise interativa de alta definicao para importacao e exportacao por municipio,
 |>
 |>
 
-## Visoes exploratorias
-<|layout|columns=1 1|gap=12px|
+## Visoes core
+<|layout|columns=2 1|gap=12px|
 <|chart|figure={fig_ts}|height=420px|>
 <|chart|figure={fig_heatmap}|height=420px|>
 |>
 
 <|layout|columns=1 1|gap=12px|
-<|chart|figure={fig_rank}|height=460px|>
-<|chart|figure={fig_treemap}|height=460px|>
+<|chart|figure={fig_rank}|height=430px|>
+<|chart|figure={fig_treemap}|height=430px|>
 |>
 
 <|layout|columns=1 1|gap=12px|
-<|chart|figure={fig_bubble}|height=460px|>
-<|chart|figure={fig_lorenz}|height=460px|>
+<|chart|figure={fig_bubble}|height=430px|>
+<|chart|figure={fig_lorenz}|height=430px|>
 |>
+
+## Produtos exportados e importados
+<|layout|columns=1 1|gap=12px|
+<|chart|figure={fig_products}|height=460px|>
+<|chart|figure={fig_product_space}|height=460px|>
+|>
+
+<|{product_table}|table|width=100%|>
 
 ## Advanced intelligence
 <|layout|columns=1 1|gap=12px|
-<|chart|figure={fig_opportunity}|height=460px|>
-<|chart|figure={fig_regime}|height=460px|>
+<|chart|figure={fig_opportunity}|height=430px|>
+<|chart|figure={fig_regime}|height=430px|>
 |>
 
 <|chart|figure={fig_sankey}|height=560px|>
